@@ -1,0 +1,2758 @@
+---
+title: "Thesis' Script"
+author: "YY"
+date: "8/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ingestr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+library(readr)
+library(rsofun)
+library(reticulate)
+library(zoo)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(xts)
+
+#for NetCDF
+library(ncdf4) # package for netcdf manipulation
+library(raster) # package for raster manipulation
+library(rgdal) # package for geospatial analysis
+library(ggplot2) # package for plotting
+library(weathermetrics)
+library(gsubfn)
+
+```
+
+1. Site Data Processing Sample
+
+1.1 Calculate GPP for LCA
+
+
+```{r}
+
+LUE <- (-0.008+0.00375*LCA$Ta-0.000058*LCA$Ta^2)/8*12*0.66941
+GPP <- LCA$Fpar*LCA$par*LUE
+
+GPP[is.na(GPP)]<-0
+GPP[GPP<0]<-0
+
+LCA$Date <- ymd(LCA$Date)
+LCA <- cbind(LCA,GPP)
+
+
+ggplot() +
+  geom_line(data = LCA, aes(x=Date, y=GPP), color = 'black') +
+  labs(title = "LCA", subtitle = "GPP")
+
+
+```
+
+1.2 LCA AB to GPP
+
+```{r}
+
+#fix Date
+
+#CWAbio$Date <-as.Date(with(CWAbio, paste(year, month, day,sep="-")), "%Y-%m-%d")
+
+#CWAbio <- CWAbio %>%
+  #mutate(Date = as.Date(Date)) %>%
+  #complete(Date = seq.Date(min(Date), max(Date), by="day"))
+
+#CWAbio <- subset(CWAbio,Date > "2004-12-31")
+
+#regression
+
+reg5 <- lm(GPP ~ ABw, data = CWAbio3)
+summary(reg5)
+
+ggplotRegression(reg5)
+
+reg6 <- lm(ABw ~ yield, data = CWAbio3)
+summary(reg6)
+
+ggplotRegression(reg6)
+
+
+```
+
+
+1.3 LCA Yield and growing season data
+
+```{r}
+#Combined szn
+
+
+LCA05 <- subset(LCA, Date > "2005-06-04" & Date < "2005-09-27")
+
+LCA06 <- subset(LCA, Date > "2006-06-17" & Date < "2006-09-25")
+
+LCA07 <- subset(LCA, Date > "2007-06-17" & Date < "2007-09-27")
+
+LCA08 <- subset(LCA, Date > "2008-06-24" & Date < "2008-10-03")
+
+LCA09 <- subset(LCA, Date > "2009-06-19" & Date < "2009-09-24")
+
+LCA10 <- subset(LCA, Date > "2010-06-14" & Date < "2010-09-28")
+
+LCA11 <- subset(LCA, Date > "2011-06-22" & Date < "2011-09-28")
+
+LCA12 <- subset(LCA, Date > "2012-06-20" & Date < "2012-09-29")
+
+LCA13 <- subset(LCA, Date > "2013-06-23" & Date < "2013-09-21")
+
+LCA14 <- subset(LCA, Date > "2014-06-20" & Date < "2014-09-30")
+
+LCAszn <- rbind(LCA06,LCA07,LCA08,LCA09,LCA10,LCA11,LCA12,LCA13,LCA14)
+
+LCAsznweek <- LCAszn %>%
+  mutate(year = year(Date),
+         week = week(Date)) %>%
+  group_by (year, week) %>%
+  summarise(Ta = mean(Ta),
+            Fpar = mean(Fpar),
+            par = sum(par))
+
+#CAL GPP
+
+LUE <- (-0.008+0.00375*LCAsznweek$Ta-0.000058*LCAsznweek$Ta^2)/8*12*0.66941
+GPP <- LCAsznweek$Fpar*LCAsznweek$par*LUE
+
+GPP[is.na(GPP)]<-0
+GPP[GPP<0]<-0
+
+LCAsznweek$GPP <- GPP
+
+#SUM INTO YEARLY
+
+LCAyear <- LCAsznweek %>%
+  group_by(year) %>%
+  summarise(GPP = sum(GPP))
+
+LCAyear$GPPx <- LCAyear$GPP*2.5
+
+write.csv2(LCAyear,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAnewGPP", row.names = FALSE)
+
+#LCAavg <- LCAszn %>%
+  #group_by(Code) %>%
+  #summarise(Ta = mean(Ta))
+
+#yieldLCA <- c(6360.462,3892.757,2645.243,4423.9,4087.538,4264.87,4798.34,5816.2,3840.433)/10
+
+#LCAyear$yield <- yieldLCA/10
+
+```
+
+1.4 Regression on LCA
+
+```{r}
+
+#Reg LCA
+
+reg7 <- lm(GPP ~ yield, data = LCAyear)
+summary(reg7)
+
+ggplotRegression(reg7)
+
+
+#CWA+ASA
+
+combined3 <- rbind(LCAyear,combined)
+reg8 <- lm(GPP ~ yield, data = combined3)
+summary(reg8)
+
+ggplotRegression(reg8)
+
+```
+
+2. Data Processing
+
+```{r}
+reg999 <- lm(Yield ~ GPPx, data = AllYieldGPP2)
+summary(reg999)
+
+ggplotRegression(reg999)
+ggplotRegression(reg99)
+```
+
+2. Grouped scatter
+```{r}
+AllYieldGPP2$GPPx <- AllYieldGPP2$GPP/4
+
+AllYieldGPP2$Site <- as.factor(AllYieldGPP2$Site)
+AllYieldGPP2$Year <- as.factor(AllYieldGPP2$Year)
+
+plot <- ggplot(AllYieldGPP2, aes(x = GPPx, y = Yield))
+# Scatter plot with regression line
+plot + geom_point()+
+  geom_smooth(method = "lm") 
+     
+# Add a loess smoothed fit curve
+plot + geom_point()+
+  geom_smooth(method = "loess") 
+
+```
+
+
+
+```{r}
+
+ggscatter(AllYieldGPP2,x="GPPx",y="Yield",add="reg.line",conf.int = TRUE,add.params = list(fill="lightgray"),ggtheme = theme_classic2())+stat_cor(method = "pearson")
+
+```
+
+```{r}
+formula <- y ~ x
+
+#Add site color
+plot + geom_point(aes(color = Site))+ geom_smooth(method = "lm") + ggpubr::stat_cor() + stat_regline_equation(formula = formula,label.y = 1170)
+
+#Change color and shape by groups (cyl)
+plot + geom_point(aes(color = Site))+
+  geom_smooth(aes(color = Site, fill = Site), method = "lm") +
+  scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9"))+
+  scale_fill_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9"))
+
+# Remove confidence region (se = FALSE)
+
+# Extend the regression lines: fullrange = TRUE
+plot + geom_point(aes(color = Year)) +
+  geom_smooth(method = lm, se = FALSE, fullrange = TRUE)+
+  ggpubr::stat_cor()
+
+
+
+```
+Multiple Panel
+```{r}
+#Site
+plot + geom_point(aes(color = Site))+
+  geom_smooth(aes(color = Site, fill = Site), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Site) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9"))+
+  scale_fill_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9")) +
+  theme_bw()
+
+```
+
+
+```{r}
+plot2 <- ggplot(ABYield2, aes(x = Yield, y = AB))
+
+#Reg AB Yield FCA, CWA, LCA, FQA, YCA, YGA
+
+reg98 <- lm(AB ~ Yield, data = ABYield2)
+summary(reg98)
+
+ggplotRegression(reg98)
+
+plot2 + geom_point()+ geom_smooth(method = "lm") + ggpubr::stat_cor() + stat_regline_equation(formula = formula,label.y = 2070)
+
+```
+Sensitivity Analysis
+```{r}
+#Takeout 06
+LCAszn06 <- LCA06[-c(1,2,3,4,12)]
+LCA06week <- LCAszn06 %>%
+  mutate(week = week (LCA06$Date)) %>%
+  group_by (week) %>%
+  summarise(Ta = mean(Ta),
+         Rh = mean(Rh),
+         Rad = mean(Rad),
+         Fpar = mean(Fpar),
+         sm = mean(sm),
+         par = mean(par))
+
+write.csv(LCA06,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAu.csv", row.names = FALSE)
+```
+
+```{r}
+#Calculate GPP for LCAsa
+
+LUE <- (-0.008+0.00375*LCAsa$Ta-0.000058*LCAsa$Ta^2)/8*12*0.66941
+GPP <- LCAsa$Fpar*LCAsa$par*LUE
+
+GPP[is.na(GPP)]<-0
+GPP[GPP<0]<-0
+
+LCAsa$GPP <- GPP
+LCAsa$LUE <- LUE
+
+#Calculate GPP for LCAsa for RCP 4.5
+
+LUE4.5 <- (-0.008+0.00375*LCAsa$Ta1-0.000058*LCAsa$Ta1^2)/8*12*0.66941
+GPP4.5 <- LCAsa$Fpar*LCAsa$par*LUE4.5
+
+GPP4.5[is.na(GPP4.5)]<-0
+GPP4.5[GPP4.5<0]<-0
+
+LCAsa$GPP4.5 <- GPP4.5
+LCAsa$LUE4.5 <- LUE4.5
+
+#Calculate GPP for LCAsa for RCP 6.0
+
+LUE6 <- (-0.008+0.00375*LCAsa$Ta2-0.000058*LCAsa$Ta2^2)/8*12*0.66941
+GPP6 <- LCAsa$Fpar*LCAsa$par*LUE6
+
+GPP6[is.na(GPP6)]<-0
+GPP6[GPP6<0]<-0
+
+LCAsa$GPP6 <- GPP6
+LCAsa$LUE6 <- LUE6
+
+LCAsens <- LCAsa[c(1,2,3,12,13,14,15)]
+LCAsens <- cbind(LCAsens,LUE,GPP,LUE4.5,GPP4.5,LUE6,GPP6)
+
+#Adjust GPP unit to g/m2
+LCAsens$GPPx <- LCAsens$GPP*10*8
+LCAsens$GPPx1 <- LCAsens$GPP4.5*10*8
+LCAsens$GPPx2 <- LCAsens$GPP6*10*8
+
+```
+
+```{r}
+
+#LCAsaSZN
+
+#LCAsaSZN <- LCAsa
+
+LCAYEARsa <- LCAsens %>%
+  group_by (Year) %>%
+  summarise(Ta = mean(Ta),
+            Ta45 = sum(Ta45),
+            Ta60 = sum(Ta60),
+         Ta1 = mean(Ta1),
+         Ta2 = mean(Ta2),
+         LUE = mean(LUE),
+         LUE45 = mean(LUE4.5),
+         LUE60 = mean(LUE6),
+         GPPX = sum(GPPx),
+         GPP45 = sum(GPPx1),
+         GPP60 = sum(GPPx2))
+
+```
+
+
+Calculate Yield for SA
+
+```{r}
+
+#Define Formula
+
+{  
+  calYield <- function( GPP ){
+    #-----------------------------------------------------------------------
+    # Input:    - GPP, gm-2 (GPP)
+    # Output:   - yield, gm-2 (yield)
+    
+    # Calculate yield:
+    yield <- 560 + (0.77*GPP)
+
+    return (yield)
+  
+  }}
+
+{  
+  calYield2 <- function( GPP ){
+    #-----------------------------------------------------------------------
+    # Input:    - GPP, gm-2 (GPP)
+    # Output:   - yield, gm-2 (yield)
+    
+    # Calculate yield:
+    yield <- 535 + (0.18*GPP)
+
+    return (yield)
+  
+  }}
+
+```
+
+```{r}
+
+#Calculate Yield
+
+LCAYEARsa$Yield <- calYield2(LCAYEARsa$GPPX)
+LCAYEARsa$Yield45 <- calYield2(LCAYEARsa$GPP45)
+LCAYEARsa$Yield60 <- calYield2(LCAYEARsa$GPP60)
+
+write.csv2(LCAYEARsa,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAYEARsa.csv", row.names = FALSE)
+
+#ggplot() +
+  #geom_line(data = LCAsaYEAR, aes(x=`RCP 4.5`, y=Yield4.5), color = 'black') +
+ # labs(title = "Increasing Temperature", subtitle = "RCP 4.5")
+
+
+
+```
+
+ReDraw Plot GPP
+
+```{r}
+combined$Site <- as.factor(combined$Site)
+combined$Year <- as.factor(combined$Year)
+
+plotXX <- ggplot(combined, aes(x = GPPObs, y = GPPp))
+regGvG <- lm(GPPObs ~ GPPp, data = combined)
+summary(regGvG)
+ggplotRegression(regGvG)
+
+
+formula <- y ~ x
+
+#Add site color
+plotXX + geom_point(aes(color = Site))+ geom_smooth(method = "lm") + ggpubr::stat_cor() + stat_regline_equation(formula = formula,label.y = 23)
+
+
+```
+Yield to Yield P
+
+```{r}
+
+write.csv2(AllYieldGPP2,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\YieldxYield.csv", row.names = FALSE)
+
+AllYieldGPP2$YieldP <- calYield(AllYieldGPP2$GPPx)
+AllYieldGPP2$GPPf <- AllYieldGPP2$GPPx
+
+AllYieldGPP2$GPPf <- as.factor(AllYieldGPP2$GPPf)
+
+plotXXX <- ggplot(AllYieldGPP2, aes(x=Year, y=Yield)) + 
+  geom_boxplot() + scale_x_discrete(name="Year", breaks=c("2004","2006","2008","2010","2012","2014"))
+
+plotXXX
+
+```
+
+
+Box x Line
+
+```{r}
+yxy$Year <- as.factor(yxy$Year)
+
+plotyxy <- ggplot(yxy, aes(x=Year, y=Yield)) + 
+  geom_boxplot(aes(color=Site))+ scale_color_manual(values = c("#00AFBB", "#E7B800"))+ scale_x_discrete(name="Year", breaks=c("2005","2009","2013"))
+
+#Site
+plotyxy +
+  facet_wrap(~Site)+ geom_line(aes(x=as.numeric(Year),y=YieldP),show.legend = TRUE)+ geom_point(aes(x=as.numeric(Year),y=YieldP),show.legend = TRUE)
+
+```
+
+```{r}
+
+reg999x <- lm(Yield ~ GPPy, data = AllYieldGPP3)
+summary(reg999x)
+ggplotRegression(reg999x)
+
+AllYieldGPP3$Site <- as.factor(AllYieldGPP3$Site)
+AllYieldGPP3$Year <- as.factor(AllYieldGPP3$Year)
+
+plottest <- ggplot(AllYieldGPP3, aes(x = GPPy, y = Yield))
+
+formula <- y ~ x
+
+#Add site color
+plottest + geom_point(aes(color = Site))+ geom_smooth(method = "lm") + ggpubr::stat_cor(label.x = 30,label.y = 1300) + stat_regline_equation(formula = formula,label.x = 30,label.y = 1420) +   scale_x_continuous(expand = c(0, 0), limits = c(0, 3200)) + scale_y_continuous(expand = c(0, 0), limits = c(0,1500))
+
+
+#Change color and shape by groups (cyl)
+plottest + geom_point(aes(color = Site))+
+  geom_smooth(aes(color = Site, fill = Site), method = "lm") +
+  scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9"))+
+  scale_fill_manual(values = c("#00AFBB", "#E7B800", "#FC4E07","#BA7FD9"))
+# Remove confidence region (se = FALSE)
+
+# Extend the regression lines: fullrange = TRUE
+plottest + geom_point(aes(color = Year)) +
+  geom_smooth(method = lm, se = FALSE, fullrange = TRUE)+
+  ggpubr::stat_cor()
+
+
+
+```
+```{r}
+#write.csv2(AllYieldGPP3,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\Yieldfinal.csv", row.names = FALSE)
+
+yieldfinal$YieldP <- calYield2(yieldfinal$GPPy)
+yieldfinal$Year <- as.factor(yieldfinal$Year)
+
+plotyield <- ggplot(yieldfinal, aes(x=Year, y=Yield)) + 
+  geom_boxplot(aes(color=Site))+ scale_color_manual(values = c("#00AFBB", "#E7B800"))+ scale_x_discrete(name="Year", breaks=c("2005","2009","2013"))
+
+#Site
+plotyield +
+  facet_wrap(~Site)+ geom_line(aes(x=as.numeric(Year),y=YieldP),show.legend = TRUE)+ geom_point(aes(x=as.numeric(Year),y=YieldP),show.legend = TRUE)
+
+
+```
+
+```{r}
+
+regyxy <- lm(Yield ~ YieldP, data = yieldfinal)
+summary(regyxy)
+ggplotRegression(regyxy)
+
+plotyf <- ggplot(yieldfinal, aes(x = YieldP, y = Yield))
+
+formula <- y ~ x
+
+#Add site color
+plotyf + geom_point(aes(color = Site))+ geom_smooth(method = "lm") + ggpubr::stat_cor() + stat_regline_equation(formula = formula,label.y = 1170)
+
+#Deming
+library(ggplot2)
+library (MethComp)
+
+pca <- prcomp(~YieldP+Yield, yieldfinal)
+slp <- with(pca, rotation[2,1] / rotation[1,1])
+int <- with(pca, center[2] - slp*center[1])
+
+ggplot(yieldfinal, aes(YieldP,Yield)) + 
+  geom_point() + 
+  geom_smooth(method=lm, color="green") +
+  geom_abline(slope=slp, intercept=int, color="blue")
+
+
+```
+```{r}
+unc_effect<-data.frame(variable=c("c*","Intercept","ε"), Yield=c(923.554128
+,923.554128,923.554128), lower=c(879.6173948,883.924128,882.4820256), upper=c(967.4908612,963.184128,964.6262304))
+
+ggplot() + 
+geom_pointrange(data=unc_effect, mapping=aes(x=variable, y=Yield, ymin=upper, ymax=lower), size=1, color="black", fill="black", shape=21)+ scale_y_continuous(expand = c(0, 0), limits = c(800,1050))
+
+unc_effectGPP<-data.frame(variable=c("c*","x","z"), GPP=c(2161.6896,2161.6896,2161.6896), lower=c(1917.596638,2161.6896,2161.6896), upper=c(2405.782562,2161.6896,2161.6896))
+
+ggplot() + 
+geom_pointrange(data=unc_effectGPP, mapping=aes(x=variable, y=GPP, ymin=upper, ymax=lower), size=1, color="black", fill="black", shape=7)
+
+```
+
+3. Uncertainty Analysis (written w/ Shengcao Qiao of Tsinghua Univ)
+
+```{r}
+
+##===================================
+## 1. parameterization
+##===================================
+
+# the ratio of cost factor b to a at reference temperature
+beta <- 240
+
+# the cost factor of maintaining Jmax
+c <- 0.41+0
+
+##===================================
+## 2. define functions
+##===================================
+{
+  # calculate air pressure in Pa
+  calc_patm <- function( elv ){
+    #-----------------------------------------------------------------------
+    # Input:    - elevation, m (elv)
+    # Output:   - float, atmospheric pressure at elevation 'elv', Pa (patm)
+    # Features: Returns the atmospheric pressure as a function of elevation
+    #           and standard atmosphere (1013.25 hPa)
+    # Depends:  - connect_sql
+    #           - flux_to_grid
+    #           - get_data_point
+    #           - get_msvidx
+    # Ref:      Allen et al. (1998)
+    #-----------------------------------------------------------------------
+
+    # Define constants:
+    kPo <- 101325   # standard atmosphere, Pa (Allen, 1973)
+    kTo <- 298.15   # base temperature, K (Prentice, unpublished)
+    kL <- 0.0065    # temperature lapse rate, K/m (Allen, 1973)
+    kG <- 9.80665   # gravitational acceleration, m/s^2 (Allen, 1973)
+    kR <- 8.3143    # universal gas constant, J/mol/K (Allen, 1973)
+    kMa <- 0.028963 # molecular weight of dry air, kg/mol (Tsilingiris, 2008)
+
+    # Convert elevation to pressure, Pa:
+    patm <- kPo*(1.0 - kL*elv/kTo)**(kG*kMa/(kR*kL))
+
+    return (patm)
+  }
+
+  # calculate K (MM coefficient of Rubisco) in Pa
+  calc_k <- function(temp, patm) {
+    #-----------------------------------------------------------------------
+    # Input:    - float, air temperature, deg C (temp)
+    #           - float, atmospheric pressure, Pa (patm)
+    # Output:   float, Pa (mmk)
+    # Features: Returns the temperature & pressure dependent Michaelis-Menten
+    #           coefficient, K (Pa).
+    # Ref:      Bernacchi et al. (2001), Improved temperature response
+    #           functions for models of Rubisco-limited photosynthesis,
+    #           Plant, Cell and Environment, 24, 253--259.
+    #-----------------------------------------------------------------------
+
+    # Define constants
+    kc25 <- 39.97      # Pa, assuming 25 deg C & 98.716 kPa
+    ko25 <- 2.748e4    # Pa, assuming 25 deg C & 98.716 kPa
+    dhac <- 79430      # J/mol
+    dhao <- 36380      # J/mol
+    kR   <- 8.3145     # J/mol/K
+    kco  <- 2.09476e5  # ppm, US Standard Atmosphere
+
+    vc <- kc25*exp(dhac*(temp - 25.0)/(298.15*kR*(temp + 273.15)))
+    vo <- ko25*exp(dhao*(temp - 25.0)/(298.15*kR*(temp + 273.15)))
+    k  <- vc*(1 + kco*(1e-6)*patm/vo)
+
+    return(k)
+
+  }
+
+  # calculate Gstar (CO2 compensation point) in Pa
+  calc_gstar_gepisat <- function( temp ) {
+    #-----------------------------------------------------------------------
+    # Input:    float, air temperature, degrees C (tc)
+    # Output:   float, gamma-star, Pa (gs)
+    # Features: Returns the temperature-dependent photorespiratory
+    #           compensation point, Gamma star (Pascals), based on constants
+    #           derived from Bernacchi et al. (2001) study.
+    # Ref:      Bernacchi et al. (2001), Improved temperature response
+    #           functions for models of Rubisco-limited photosynthesis,
+    #           Plant, Cell and Environment, 24, 253--259.
+    #-----------------------------------------------------------------------
+
+    # Define constants
+    gs25 <- 4.220    # Pa, assuming 25 deg C & 98.716 kPa)
+    dha  <- 37830    # J/mol
+    kR   <- 8.3145   # J/mol/K
+
+    gs <- gs25 * exp( dha * ( temp - 25.0 ) / ( 298.15 * kR * ( temp + 273.15 ) ) )
+
+    return( gs )
+
+  }
+
+  # conver CO2 from ppm to Pa
+  co2_to_ca <- function( co2, patm ){
+    #-----------------------------------------------------------------------
+    # Input:    - float, annual atm. CO2, ppm (co2)
+    #           - float, monthly atm. pressure, Pa (patm)
+    # Output:   - ca in units of Pa
+    # Features: Converts ca (ambient CO2) from ppm to Pa.
+    #-----------------------------------------------------------------------
+    ca   <- ( 1.e-6 ) * co2 * patm         # Pa, atms. CO2
+    return( ca )
+  }
+}
+
+##===================================
+## 3. read input data
+## (replace this with your input data)
+##===================================
+  CO2.ppm <- 380 # ppm
+  elv.m  <- 50.1 # elevation in meter
+  Tc.deg_C<-LCA06$Ta
+  PPFD  <- LCA06$par # PAR in mol photon m-2 month-1
+  RH<-LCA06$Rh #relative humidity
+  VPD.kPa  <- 0.611*exp(17.502*Tc.deg_C/(Tc.deg_C+240.97))*(1-RH/100) # vapour pressure deficit in kPa
+  #LAI<-LCAlai$LAI
+  fAPAR  <- LCA06$Fpar # factional absored PAR
+
+
+### GEE_O<- Yucheng$GEE_O #observed GPP
+##============================================
+## 4. running Pmodel
+##============================================
+# instrinsic quantum yield, based on Cozettle et al.1998, unit: g C/ mol photon
+# Bernacchi et al. (2001)
+
+    c <- 0.41+(0.41*0.1)
+    phi <- (-0.008+0.00375*Tc.deg_C-0.000058*Tc.deg_C^2)/8
+    phi0 <- phi*0.8 # mol C/ mol photon
+    maxQE <- phi0*12
+
+    # light use efficiency
+    K <- calc_k(Tc.deg_C,calc_patm(elv.m))
+    Gstar <- calc_gstar_gepisat(Tc.deg_C)
+    f1 <- exp(-0.0227*(Tc.deg_C-25)) # the viscosity of water relative to its value at 25˚C
+    pa <- co2_to_ca(CO2.ppm,calc_patm(elv.m))
+
+    m <- 1
+    M <- m*sqrt(1-(c/m)^(2/3))
+
+    LUEu <- (-0.008+0.00375*Tc.deg_C-0.000058*Tc.deg_C^2)/8*12*M
+
+    Iabsu <- fAPAR*PPFD
+    GPPu10 <- LUEu*Iabsu
+    GPPs <- sum(LCAunc$GPPu)
+
+    LCAunc <- data.frame(GPPu1,GPPu2,GPPu,GPPu10)
+    write.csv2(LCAunc,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAunc.csv", row.names = FALSE)
+
+
+##============================================
+## 5. uncertainty analysis
+##============================================
+
+# the equations used to calculate GPP
+  GPP1<-expression(ph0*I_abs1*m1*sqrt(1-(c_star/m1)^(2/3)))
+  I_abs<-expression((1-1/exp(0.5*LAI1))*PPFD)
+  m<-1
+  gam_star<-expression(gam_star_25*exp(Hr_star*(t-25)/R/298.15/(t+273.15)))
+  yita_star<-expression(exp(580*(t-25)/160/(t+273.15-138)))
+  K<-expression(Kc1*(1+O*0.000001*patm/Ko1))
+  Kc<-expression(Kc_25*exp(Hk_c*(t-25)/R/298.15/(t+273.15)))
+  Ko<-expression(Ko_25*exp(Hk_o*(t-25)/R/298.15/(t+273.15)))
+
+
+# parameters and inputs
+  Kc_25<-40.41
+  Hk_c<-64805.5
+  R<-8.31446
+  Ko_25<-27480
+  Hk_o<-36164
+  O<-209460
+  gam_star_25<-4.08
+  Hr_star<-27055.67
+  bate<-146
+  c_star<-0.41
+
+  t<-Tc.deg_C
+  fAPAR<-fAPAR
+  PPFD<-PPFD
+  ph0<-maxQE
+  ca<-pa
+  D<-VPD.kPa
+  patm<-calc_patm(elv.m)
+
+# uncertainty of parameters and inputs
+  #Kc_25_un<-3.45
+  #Hk_c_un<-5018.5
+  #R_un<-0
+  #Ko_25_un<-0
+  #Hk_o_un<-152.74
+  #O_un<-0
+  #gam_star_25_un<-0.1
+  #Hr_star_un<-5020.93
+  #bate_un<-2.7
+  #c_star_un<-0.112
+
+  Kc_25_un<-0
+  Hk_c_un<-0
+  R_un<-0
+  Ko_25_un<-0
+  Hk_o_un<-0
+  O_un<-0
+  gam_star_25_un<-0
+  Hr_star_un<-0
+  bate_un<-0
+
+  #CHANGE THIS VALUE
+  c_star_un<-0.112
+  int_un<-39.63
+  n_un<-0.016
+
+  t_un<-0
+  fAPAR_un<-0
+  PPFD_un<-0
+  ph0_un<-0
+  ca_un<-0
+  D_un<-0
+  patm_un<-0
+
+# calculate the value of variables
+  Kc1<-Kc_25*exp(Hk_c*(t - 25.0)/(298.15*R*(t + 273.15)))
+  Ko1<-Ko_25*exp(Hk_o*(t - 25.0)/(298.15*R*(t + 273.15)))
+  K1<-Kc1*(1+O*0.000001*patm/Ko1)
+  gam_star1<-gam_star_25*exp(Hr_star*(t-25)/R/298.15/(t+273.15))
+  yita_star1<-exp(580*(t-25)/160/(t+273.15-138))
+  m1<-1
+  fAPAR1<-fAPAR
+  I_abs1<-fAPAR*PPFD
+
+# calculate uncertainty
+  Kc_un2<-eval(D(Kc,'Kc_25'))^2*Kc_25_un^2+
+    eval(D(Kc,'Hk_c'))^2*Hk_c_un^2+
+    eval(D(Kc,'R'))^2*R_un^2+
+    eval(D(Kc,'t'))^2*t_un^2
+  Ko_un2<-eval(D(Ko,'Ko_25'))^2*Ko_25_un^2+
+    eval(D(Ko,'Hk_o'))^2*Hk_o_un^2+
+    eval(D(Ko,'R'))^2*R_un^2+
+    eval(D(Ko,'t'))^2*t_un^2
+  K_un2<-eval(D(K,'Kc1'))^2*Kc_un2+eval(D(K,'Ko1'))^2*Ko_un2+
+    eval(D(K,'O'))^2*O_un^2+eval(D(K,'patm'))^2*patm_un^2
+  yita_star_un2<-eval(D(yita_star,'t'))*t_un^2
+  gam_star_un2<-eval(D(gam_star,'gam_star_25'))^2*gam_star_25_un^2+
+    eval(D(gam_star,'Hr_star'))^2*Hr_star_un^2+
+    eval(D(gam_star,'R'))^2*R_un^2+
+    eval(D(gam_star,'t'))^2*t_un^2
+  m_un2<-eval(D(m,'gam_star1'))^2*gam_star_un2+
+    eval(D(m,'yita_star1'))^2*yita_star_un2+
+    eval(D(m,'K1'))^2*K_un2+
+    eval(D(m,'bate'))^2*bate_un^2+
+    eval(D(m,'ca'))^2*ca_un^2+
+    eval(D(m,'D'))^2*D_un^2
+  I_abs_un2<-eval(D(I_abs,'LAI1'))^2*LAI_un^2+eval(D(I_abs,'PPFD'))^2*PPFD_un^2
+  GPP_un2<-eval(D(GPP1,'ph0'))^2*ph0_un^2+
+    eval(D(GPP1,'I_abs1'))^2*I_abs_un2+
+    eval(D(GPP1,'m1'))^2*m_un2+
+    eval(D(GPP1,'c_star'))^2*c_star_un^2
+  GPP_un<-sqrt(GPP_un2)
+
+LCAunc1 <- data.frame(Kc_un2,Ko_un2,K_un2,yita_star_un2,gam_star_un2,m_un2,I_abs_un2,GPP_un2,GPP_un)
+LCAunc1$GPPu <- LCAunc1$GPP_un*GPPu*100
+LCAunc1$GPP <- GPPu
+write.csv2(LCAunc,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAunc.csv", row.names = FALSE)
+
+n <- 0.77
+yield <- expression(560+(n*GPP1))
+yield_un2<-eval(D(yield,'n'))^2*n_un^2+eval(D(yield,'GPP1'))^2*GPP_un^2
+
+
+
+```
+
+4. NetCDF data retrieval and processing
+
+4.1 Sample for MIROC5 RCP 2.6 input
+
+```{r}
+
+MIROCT1 <- nc_open("MIROCT1.nc")
+names(MIROCT1$var)
+
+{
+    sink('MIROCT1.txt')
+ print(MIROCT1)
+    sink()
+}
+
+nc_close(MIROCT1) 
+```
+
+
+```{r}
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2006-06-18" & getZ(a) <= "2006-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta6 <- kelvin.to.celsius(ta, round = 2)
+
+
+#2007
+b <- subset(a, which(getZ(a) >= "2007-06-18" & getZ(a) <= "2007-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta7 <- kelvin.to.celsius(ta, round = 2)
+
+
+#2008
+b <- subset(a, which(getZ(a) >= "2008-06-18" & getZ(a) <= "2008-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta8 <- kelvin.to.celsius(ta, round = 2)
+
+
+#2009
+b <- subset(a, which(getZ(a) >= "2008-06-18" & getZ(a) <= "2008-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta9 <- kelvin.to.celsius(ta, round = 2)
+
+
+#2010
+b <- subset(a, which(getZ(a) >= "2010-06-18" & getZ(a) <= "2010-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta10 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2011-2020
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2011-06-18" & getZ(a) <= "2011-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta11 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2012-06-18" & getZ(a) <= "2012-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta12 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2013-06-18" & getZ(a) <= "2013-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta13 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2014-06-18" & getZ(a) <= "2014-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta14 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2015-06-18" & getZ(a) <= "2015-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta15 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2016-06-18" & getZ(a) <= "2016-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta16 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2017-06-18" & getZ(a) <= "2017-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta17 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2018-06-18" & getZ(a) <= "2018-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta18 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2019-06-18" & getZ(a) <= "2019-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta19 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2020-06-18" & getZ(a) <= "2020-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta20 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2021-2030
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2021-06-18" & getZ(a) <= "2021-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta21 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2022-06-18" & getZ(a) <= "2022-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta22 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2023-06-18" & getZ(a) <= "2023-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta23 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2024-06-18" & getZ(a) <= "2024-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta24 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2025-06-18" & getZ(a) <= "2025-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta25 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2026-06-18" & getZ(a) <= "2026-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta26 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2027-06-18" & getZ(a) <= "2027-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta27 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2028-06-18" & getZ(a) <= "2028-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta28 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2029-06-18" & getZ(a) <= "2029-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta29 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2030-06-18" & getZ(a) <= "2030-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta30 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+
+2031-2040
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2031-06-18" & getZ(a) <= "2031-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta31 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2032-06-18" & getZ(a) <= "2032-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta32 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2033-06-18" & getZ(a) <= "2033-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta33 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2034-06-18" & getZ(a) <= "2034-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta34 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2035-06-18" & getZ(a) <= "2035-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta35 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2036-06-18" & getZ(a) <= "2036-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta36 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2037-06-18" & getZ(a) <= "2037-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta37 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2038-06-18" & getZ(a) <= "2038-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta38 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2039-06-18" & getZ(a) <= "2039-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta39 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2040-06-18" & getZ(a) <= "2040-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta40 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2041-2050
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2041-06-18" & getZ(a) <= "2041-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta41 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2042-06-18" & getZ(a) <= "2042-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta42 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2043-06-18" & getZ(a) <= "2043-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta43 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2044-06-18" & getZ(a) <= "2044-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta44 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2045-06-18" & getZ(a) <= "2045-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta45 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2046-06-18" & getZ(a) <= "2046-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta46 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2047-06-18" & getZ(a) <= "2047-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta47 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2048-06-18" & getZ(a) <= "2048-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta48 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2049-06-18" & getZ(a) <= "2049-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta49 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2050-06-18" & getZ(a) <= "2050-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta50 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2051-2060
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2051-06-18" & getZ(a) <= "2051-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta51 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2052-06-18" & getZ(a) <= "2052-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta52 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2053-06-18" & getZ(a) <= "2053-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta53 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2054-06-18" & getZ(a) <= "2054-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta54 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2055-06-18" & getZ(a) <= "2055-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta55 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2056-06-18" & getZ(a) <= "2056-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta56 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2057-06-18" & getZ(a) <= "2057-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta57 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2058-06-18" & getZ(a) <= "2058-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta58 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2059-06-18" & getZ(a) <= "2059-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta59 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2060-06-18" & getZ(a) <= "2060-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta60 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2061-2070
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2061-06-18" & getZ(a) <= "2061-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta61 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2062-06-18" & getZ(a) <= "2062-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta62 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2063-06-18" & getZ(a) <= "2063-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta63 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2064-06-18" & getZ(a) <= "2064-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta64 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2065-06-18" & getZ(a) <= "2065-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta65 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2066-06-18" & getZ(a) <= "2066-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta66 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2067-06-18" & getZ(a) <= "2067-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta67 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2068-06-18" & getZ(a) <= "2068-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta68 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2069-06-18" & getZ(a) <= "2069-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta69 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2070-06-18" & getZ(a) <= "2070-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta70 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2071-2080
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2071-06-18" & getZ(a) <= "2071-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta71 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2072-06-18" & getZ(a) <= "2072-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta72 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2073-06-18" & getZ(a) <= "2073-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta73 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2074-06-18" & getZ(a) <= "2074-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta74 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2075-06-18" & getZ(a) <= "2075-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta75 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2076-06-18" & getZ(a) <= "2076-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta76 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2077-06-18" & getZ(a) <= "2077-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta77 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2078-06-18" & getZ(a) <= "2078-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta78 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2079-06-18" & getZ(a) <= "2079-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta79 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2080-06-18" & getZ(a) <= "2080-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta80 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2081-2090
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2081-06-18" & getZ(a) <= "2081-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta81 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2082-06-18" & getZ(a) <= "2082-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta82 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2083-06-18" & getZ(a) <= "2083-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta83 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2084-06-18" & getZ(a) <= "2084-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta84 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2085-06-18" & getZ(a) <= "2085-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta85 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2086-06-18" & getZ(a) <= "2086-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta86 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2087-06-18" & getZ(a) <= "2087-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta87 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2088-06-18" & getZ(a) <= "2088-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta88 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2089-06-18" & getZ(a) <= "2089-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta89 <- kelvin.to.celsius(ta, round = 2)
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2090-06-18" & getZ(a) <= "2090-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta90 <- kelvin.to.celsius(ta, round = 2)
+
+  
+```
+
+2081-2090
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "tasAdjust")
+b <- subset(a, which(getZ(a) >= "2091-06-18" & getZ(a) <= "2091-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta91 <- kelvin.to.celsius(ta, round = 2)
+
+#2
+b <- subset(a, which(getZ(a) >= "2092-06-18" & getZ(a) <= "2092-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta92 <- kelvin.to.celsius(ta, round = 2)
+
+#3
+b <- subset(a, which(getZ(a) >= "2093-06-18" & getZ(a) <= "2093-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta93 <- kelvin.to.celsius(ta, round = 2)
+
+#4
+b <- subset(a, which(getZ(a) >= "2094-06-18" & getZ(a) <= "2094-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta94 <- kelvin.to.celsius(ta, round = 2)
+
+#5
+b <- subset(a, which(getZ(a) >= "2095-06-18" & getZ(a) <= "2095-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta95 <- kelvin.to.celsius(ta, round = 2)
+
+#6
+b <- subset(a, which(getZ(a) >= "2096-06-18" & getZ(a) <= "2096-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta96 <- kelvin.to.celsius(ta, round = 2)
+
+#7
+b <- subset(a, which(getZ(a) >= "2097-06-18" & getZ(a) <= "2097-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta97 <- kelvin.to.celsius(ta, round = 2)
+
+#8
+b <- subset(a, which(getZ(a) >= "2098-06-18" & getZ(a) <= "2098-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta98 <- kelvin.to.celsius(ta, round = 2)
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2099-06-18" & getZ(a) <= "2099-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+ta <- t(LCAMIR1)
+ta99 <- kelvin.to.celsius(ta, round = 2)
+
+
+```  
+
+
+
+
+INTO DF
+
+```{r}
+
+#MAKE DF
+
+MIROCTa26 <- rbind(ta6,ta7,ta8,ta9,ta10,ta11,ta12,ta13,ta14,ta15,ta16,ta17,ta18,ta19,ta20,ta21,ta22,ta23,ta24,ta25,ta26,ta27,ta28,ta29,ta30,ta31,ta32,ta33,ta34,ta35,ta36,ta37,ta38,ta39,ta40,ta41,ta42,ta43,ta45,ta46,ta47,ta48,ta49,ta50,ta51,ta52,ta53,ta54,ta55,ta56,ta57,ta58,ta59,ta60,ta61,ta62,ta63,ta64,ta65,ta66,ta67,ta68,ta69,ta70,ta71,ta72,ta73,ta74,ta75,ta76,ta77,ta78,ta79,ta80,ta81,ta82,ta83,ta84,ta85,ta86,ta87,ta88,ta89,ta90,ta91,ta92,ta93,ta94,ta95,ta96,ta97,ta98,ta99)
+MIROCTa26 <-data.frame(MIROCTa26)
+
+#MAKE DATE
+MIROCTa26 <-tibble::rownames_to_column(MIROCTa26,"Date")
+MIROCTa26$Date <- strapplyc(MIROCTa26$Date, "\\d+.\\d+.\\d+", simplify = TRUE)
+MIROCTa26$Date <- as.Date(MIROCTa26$Date,"%Y.%m.%d")
+
+#MAKE WEEKLY
+MIROCTa26week <- MIROCTa26 %>%
+  mutate(year = year(Date),
+         week = week(Date)) %>%
+  group_by (year, week) %>%
+  summarise(Ta26 = mean(MIROCTa26))
+
+write.csv2(MIROCTa26week,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\MIROCTa26.csv", row.names = FALSE)
+
+```
+
+For par
+
+```{r}
+
+MIROCT1 <- nc_open("MIROCT1.nc")
+names(MIROCT1$var)
+
+{
+    sink('MIROCT1.txt')
+ print(MIROCT1)
+    sink()
+}
+
+nc_close(MIROCT1) 
+```
+
+
+```{r}
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2006-06-18" & getZ(a) <= "2006-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs6 <- rs*0.5
+
+
+#2007
+b <- subset(a, which(getZ(a) >= "2007-06-18" & getZ(a) <= "2007-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs7 <- rs*0.5
+
+
+#2008
+b <- subset(a, which(getZ(a) >= "2008-06-18" & getZ(a) <= "2008-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs8 <- rs*0.5
+
+
+#2009
+b <- subset(a, which(getZ(a) >= "2008-06-18" & getZ(a) <= "2008-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs9 <- rs*0.5
+
+
+#2010
+b <- subset(a, which(getZ(a) >= "2010-06-18" & getZ(a) <= "2010-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs10 <- rs*0.5
+
+  
+```
+
+2011-2020
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2011-06-18" & getZ(a) <= "2011-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs11 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2012-06-18" & getZ(a) <= "2012-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs12 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2013-06-18" & getZ(a) <= "2013-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs13 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2014-06-18" & getZ(a) <= "2014-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs14 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2015-06-18" & getZ(a) <= "2015-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs15 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2016-06-18" & getZ(a) <= "2016-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs16 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2017-06-18" & getZ(a) <= "2017-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs17 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2018-06-18" & getZ(a) <= "2018-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs18 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2019-06-18" & getZ(a) <= "2019-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs19 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2020-06-18" & getZ(a) <= "2020-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs20 <- rs*0.5
+
+  
+```
+
+2021-2030
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2021-06-18" & getZ(a) <= "2021-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs21 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2022-06-18" & getZ(a) <= "2022-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs22 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2023-06-18" & getZ(a) <= "2023-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs23 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2024-06-18" & getZ(a) <= "2024-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs24 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2025-06-18" & getZ(a) <= "2025-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs25 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2026-06-18" & getZ(a) <= "2026-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs26 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2027-06-18" & getZ(a) <= "2027-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs27 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2028-06-18" & getZ(a) <= "2028-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs28 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2029-06-18" & getZ(a) <= "2029-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs29 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2030-06-18" & getZ(a) <= "2030-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs30 <- rs*0.5
+
+  
+```
+
+
+2031-2040
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2031-06-18" & getZ(a) <= "2031-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs31 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2032-06-18" & getZ(a) <= "2032-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs32 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2033-06-18" & getZ(a) <= "2033-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs33 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2034-06-18" & getZ(a) <= "2034-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs34 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2035-06-18" & getZ(a) <= "2035-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs35 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2036-06-18" & getZ(a) <= "2036-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs36 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2037-06-18" & getZ(a) <= "2037-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs37 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2038-06-18" & getZ(a) <= "2038-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs38 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2039-06-18" & getZ(a) <= "2039-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs39 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2040-06-18" & getZ(a) <= "2040-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs40 <- rs*0.5
+
+  
+```
+
+2041-2050
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2041-06-18" & getZ(a) <= "2041-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs41 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2042-06-18" & getZ(a) <= "2042-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs42 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2043-06-18" & getZ(a) <= "2043-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs43 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2044-06-18" & getZ(a) <= "2044-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs44 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2045-06-18" & getZ(a) <= "2045-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs45 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2046-06-18" & getZ(a) <= "2046-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs46 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2047-06-18" & getZ(a) <= "2047-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs47 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2048-06-18" & getZ(a) <= "2048-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs48 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2049-06-18" & getZ(a) <= "2049-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs49 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2050-06-18" & getZ(a) <= "2050-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs50 <- rs*0.5
+
+  
+```
+
+2051-2060
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2051-06-18" & getZ(a) <= "2051-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs51 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2052-06-18" & getZ(a) <= "2052-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs52 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2053-06-18" & getZ(a) <= "2053-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs53 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2054-06-18" & getZ(a) <= "2054-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs54 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2055-06-18" & getZ(a) <= "2055-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs55 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2056-06-18" & getZ(a) <= "2056-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs56 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2057-06-18" & getZ(a) <= "2057-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs57 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2058-06-18" & getZ(a) <= "2058-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs58 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2059-06-18" & getZ(a) <= "2059-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs59 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2060-06-18" & getZ(a) <= "2060-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs60 <- rs*0.5
+
+  
+```
+
+2061-2070
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2061-06-18" & getZ(a) <= "2061-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs61 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2062-06-18" & getZ(a) <= "2062-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs62 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2063-06-18" & getZ(a) <= "2063-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs63 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2064-06-18" & getZ(a) <= "2064-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs64 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2065-06-18" & getZ(a) <= "2065-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs65 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2066-06-18" & getZ(a) <= "2066-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs66 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2067-06-18" & getZ(a) <= "2067-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs67 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2068-06-18" & getZ(a) <= "2068-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs68 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2069-06-18" & getZ(a) <= "2069-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs69 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2070-06-18" & getZ(a) <= "2070-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs70 <- rs*0.5
+
+  
+```
+
+2071-2080
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2071-06-18" & getZ(a) <= "2071-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs71 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2072-06-18" & getZ(a) <= "2072-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs72 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2073-06-18" & getZ(a) <= "2073-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs73 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2074-06-18" & getZ(a) <= "2074-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs74 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2075-06-18" & getZ(a) <= "2075-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs75 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2076-06-18" & getZ(a) <= "2076-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs76 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2077-06-18" & getZ(a) <= "2077-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs77 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2078-06-18" & getZ(a) <= "2078-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs78 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2079-06-18" & getZ(a) <= "2079-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs79 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2080-06-18" & getZ(a) <= "2080-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs80 <- rs*0.5
+
+  
+```
+
+2081-2090
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2081-06-18" & getZ(a) <= "2081-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs81 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2082-06-18" & getZ(a) <= "2082-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs82 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2083-06-18" & getZ(a) <= "2083-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs83 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2084-06-18" & getZ(a) <= "2084-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs84 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2085-06-18" & getZ(a) <= "2085-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs85 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2086-06-18" & getZ(a) <= "2086-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs86 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2087-06-18" & getZ(a) <= "2087-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs87 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2088-06-18" & getZ(a) <= "2088-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs88 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2089-06-18" & getZ(a) <= "2089-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs89 <- rs*0.5
+
+
+#10
+b <- subset(a, which(getZ(a) >= "2090-06-18" & getZ(a) <= "2090-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs90 <- rs*0.5
+
+  
+```
+
+2091-2099
+
+```{r}
+
+a <- brick("MIROCT1.nc", varname = "rsdsAdjust")
+b <- subset(a, which(getZ(a) >= "2091-06-18" & getZ(a) <= "2091-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs91 <- rs*0.5
+
+#2
+b <- subset(a, which(getZ(a) >= "2092-06-18" & getZ(a) <= "2092-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs92 <- rs*0.5
+
+#3
+b <- subset(a, which(getZ(a) >= "2093-06-18" & getZ(a) <= "2093-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs93 <- rs*0.5
+
+#4
+b <- subset(a, which(getZ(a) >= "2094-06-18" & getZ(a) <= "2094-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs94 <- rs*0.5
+
+#5
+b <- subset(a, which(getZ(a) >= "2095-06-18" & getZ(a) <= "2095-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs95 <- rs*0.5
+
+#6
+b <- subset(a, which(getZ(a) >= "2096-06-18" & getZ(a) <= "2096-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs96 <- rs*0.5
+
+#7
+b <- subset(a, which(getZ(a) >= "2097-06-18" & getZ(a) <= "2097-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs97 <- rs*0.5
+
+#8
+b <- subset(a, which(getZ(a) >= "2098-06-18" & getZ(a) <= "2098-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs98 <- rs*0.5
+
+
+#9
+b <- subset(a, which(getZ(a) >= "2099-06-18" & getZ(a) <= "2099-09-24"))
+
+LCAMIR1 <- extract(b, cbind(LCAlon,LCAlat))
+LCAMIR1 <- data.frame(LCAMIR1)
+rs <- t(LCAMIR1)
+rs99 <- rs*0.5
+
+
+```  
+
+
+INTO DF
+
+```{r}
+
+#MAKE DF
+
+MIROCrs26 <- rbind(rs6,rs7,rs8,rs9,rs10,rs11,rs12,rs13,rs14,rs15,rs16,rs17,rs18,rs19,rs20,rs21,rs22,rs23,rs24,rs25,rs26,rs27,rs28,rs29,rs30,rs31,rs32,rs33,rs34,rs35,rs36,rs37,rs38,rs39,rs40,rs41,rs42,rs43,rs45,rs46,rs47,rs48,rs49,rs50,rs51,rs52,rs53,rs54,rs55,rs56,rs57,rs58,rs59,rs60,rs61,rs62,rs63,rs64,rs65,rs66,rs67,rs68,rs69,rs70,rs71,rs72,rs73,rs74,rs75,rs76,rs77,rs78,rs79,rs80,rs81,rs82,rs83,rs84,rs85,rs86,rs87,rs88,rs89,rs90,rs91,rs92,rs93,rs94,rs95,rs96,rs97,rs98,rs99)
+MIROCrs26 <-data.frame(MIROCrs26)
+
+#MAKE DATE
+MIROCrs26 <-tibble::rownames_to_column(MIROCrs26,"Date")
+MIROCrs26$Date <- strapplyc(MIROCrs26$Date, "\\d+.\\d+.\\d+", simplify = TRUE)
+MIROCrs26$Date <- as.Date(MIROCrs26$Date,"%Y.%m.%d")
+
+#MAKE WEEKLY
+MIROCrs26week <- MIROCrs26 %>%
+  mutate(year = year(Date),
+         week = week(Date)) %>%
+  group_by (year, week) %>%
+  summarise(par26 = sum(MIROCrs26))
+
+write.csv2(MIROCrs26week,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\MIROCpar26.csv", row.names = FALSE)
+
+```
+
+GPP
+```{r}
+MIROCTa26GPP$par26 <-MIROCrs26week$par26
+
+LUE <- (-0.008+0.00375*MIROCTa26GPP$Ta26-0.000058*MIROCTa26GPP$Ta26^2)/8*12*0.66941
+GPP <- MIROCTa26GPP$Fpar*MIROCTa26GPP$par26*LUE
+
+GPP[is.na(GPP)]<-0
+GPP[GPP<0]<-0
+
+MIROCTa26GPP <- cbind(MIROCTa26GPP,GPP)
+
+#INTO YEARLY
+
+MIROCTa26GPPyear <- MIROCTa26GPP %>%
+  group_by (year) %>%
+  summarise(GPP26 = sum(GPP))
+
+MIROCTa26GPPyear$yield26 <- calYield2(MIROCTa26GPPyear$GPP26)
+
+write.csv2(MIROCTA26GPPyear,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\MIROCTa26yield.csv", row.names = FALSE)
+
+
+```
+
+
+4.2 Retrieval of other models' result
+
+```{r}
+PEP6 <- nc_open('PEP6.nc')
+varname<-names(PEP6$var)
+
+# Save the print(nc) dump to a text file
+
+{
+    sink('PEP6.txt')
+ print(PEP6)
+    sink()
+}
+
+```
+
+Get Coord
+```{r}
+lon <- ncvar_get(PEP6, "lon")
+lat <- ncvar_get(PEP6, "lat", verbose = F)
+t <- ncvar_get(PEP6, "time")
+
+head(lon) # look at the first few entries in the longitude vector
+
+```
+
+Yield
+```{r}
+
+yieldPEP6 <- ncvar_get(PEP6, "yield") # store the data in a 3-dimensional array
+dim(yieldPEP6)
+
+fillvalue <- ncatt_get(PEP6, "yield", "_FillValue")
+fillvalue
+
+```
+
+START with eliminating NA
+```{r}
+yieldPEP6[yieldPEP6 == fillvalue$value] <- NA
+```
+
+Slice
+```{r}
+PEP6slice <- yieldPEP6[, , 90]
+dim(PEP6slice)
+
+slice <- raster(t(PEP6slice), xmn=min(lon), xmx=max(lon), ymn=min(lat), ymx=max(lat), crs=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs+ towgs84=0,0,0"))
+
+plot(slice)
+```
+
+Raster
+```{r}
+
+#LCA
+
+LCAlon <-114.68
+LCAlat <-37.88
+
+temp <- brick("PEP6.nc", var='yield')
+PEP6Yield <- extract(temp, cbind(LCAlon,LCAlat))
+PEP6Yield <- data.frame(PEP6Yield)
+PEP6 <- t(PEP6Yield)*90.7185
+
+temp <- brick("PEP26.nc", var='yield')
+PEP26Yield <- extract(temp, cbind(LCAlon,LCAlat))
+PEP26Yield <- data.frame(PEP26Yield)
+PEP26 <- t(PEP26Yield)*90.7185
+
+temp <- brick("GEP6.nc", var='yield')
+GEP6Yield <- extract(temp, cbind(LCAlon,LCAlat))
+GEP6Yield <- data.frame(GEP6Yield)
+GEP6 <- t(GEP6Yield)*90.7185
+
+temp <- brick("GEP26.nc", var='yield')
+GEP26Yield <- extract(temp, cbind(LCAlon,LCAlat))
+GEP26Yield <- data.frame(GEP26Yield)
+GEP26 <- t(GEP26Yield)*90.7185
+
+temp <- brick("LP6.nc", var='yield')
+LP6Yield <- extract(temp, cbind(LCAlon,LCAlat))
+LP6Yield <- data.frame(LP6Yield)
+LP6 <- t(LP6Yield)*90.7185
+
+temp <- brick("LP26.nc", var='yield')
+LP26Yield <- extract(temp, cbind(LCAlon,LCAlat))
+LP26Yield <- data.frame(LP26Yield)
+LP26 <- t(LP26Yield)*90.7185
+
+
+#FQA
+
+FQAlon <- 114.4
+FQAlat <- 35
+
+temp <- brick("PEP6.nc", var='yield')
+PEP6Yield <- extract(temp, cbind(FQAlon,FQAlat))
+PEP6Yield <- data.frame(PEP6Yield)
+PEP6 <- t(PEP6Yield)*90.7185
+
+temp <- brick("PEP26.nc", var='yield')
+PEP26Yield <- extract(temp, cbind(FQAlon,FQAlat))
+PEP26Yield <- data.frame(PEP26Yield)
+PEP26 <- t(PEP26Yield)*90.7185
+
+temp <- brick("GEP6.nc", var='yield')
+GEP6Yield <- extract(temp, cbind(FQAlon,FQAlat))
+GEP6Yield <- data.frame(GEP6Yield)
+GEP6 <- t(GEP6Yield)*90.7185
+
+temp <- brick("GEP26.nc", var='yield')
+GEP26Yield <- extract(temp, cbind(FQAlon,FQAlat))
+GEP26Yield <- data.frame(GEP26Yield)
+GEP26 <- t(GEP26Yield)*90.7185
+
+temp <- brick("LP6.nc", var='yield')
+LP6Yield <- extract(temp, cbind(FQAlon,FQAlat))
+LP6Yield <- data.frame(LP6Yield)
+LP6 <- t(LP6Yield)*90.7185
+
+temp <- brick("LP26.nc", var='yield')
+LP26Yield <- extract(temp, cbind(FQAlon,FQAlat))
+LP26Yield <- data.frame(LP26Yield)
+LP26 <- t(LP26Yield)*90.7185
+
+
+```
+
+To DF
+
+```{r}
+
+LCAyield <- data.frame(year= seq(from=2006, to=2099, by=1))
+LCAyield <- cbind(LCAyield,PEP6,PEP26,GEP6,GEP26,LP6,LP26)
+
+write.csv2(LCAyield,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\LCAyield.csv", row.names = FALSE)
+
+FQAyield <- data.frame(year= seq(from=2006, to=2099, by=1))
+FQAyield <- cbind(FQAyield,PEP6,PEP26,GEP6,GEP26,LP6,LP26)
+
+write.csv2(FQAyield,"C:\\Users\\Yudiandra\\Desktop\\Imperial File\\Crop Research\\Sites\\CHNYield\\FQAyield.csv", row.names = FALSE)
+
+```
